@@ -1,0 +1,52 @@
+{{- if .Values.honeybadger.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "generic-app.fullname" (list . "honeybadger") }}
+  namespace: {{ $.Release.Namespace | quote }}
+  annotations:
+      helm.sh/hook: "post-install"
+      helm.sh/hook-delete-policy: "before-hook-creation,hook-succeeded"
+      helm.sh/hook-weight: "0"
+  labels:
+    {{- include "generic-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: "honeybadger"
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "generic-app.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: "honeybadger"
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: {{ include "generic-app.fullname" (list . "honeybadger") }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+          args:
+            - sh
+            - -c
+            - curl https://api.honeybadger.io/v1/deploys -d "deploy[environment]={{.Values.environment}}&deploy[local_username]=$(HONEYBADGER_USER)&deploy[revision]=$(COMMIT_ID)&api_key=$(HONEYBADGER_API_KEY)"
+          resources:
+            requests:
+              memory: 500Mi
+              cpu: 500m
+            limits:
+              memory: 800Mi
+              cpu: 800m
+          envFrom:
+          {{- range $configmap := .Values.honeybadger.configMapNames }}
+            - configMapRef:
+                name: {{ $configmap }}
+          {{- end }}
+          {{- range $secret := .Values.honeybadger.secretNames }}
+            - secretRef:
+                name: {{ $secret }}
+          {{- end }}
+{{- end }}

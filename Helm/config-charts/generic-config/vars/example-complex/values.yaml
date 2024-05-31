@@ -1,0 +1,52 @@
+project: project
+component: api
+
+externalSecrets:
+  api: {}
+  mtls: {}
+
+ingresses:
+  api:
+    healthcheck:
+      path: "/healthcheck"
+    paths:
+      - path: /
+        service:
+          name: "project-api-service"
+          port: 80
+      - path: /api-2
+        service:
+          name: "project-api-api-2-service"
+          port: 80
+    oidc:
+      enabled: false
+    groupOrder: -1
+  api-3:
+    healthcheck:
+      path: "/api/health"
+    oidc:
+      enabled: true
+      externalSecretName: example-complex-es
+    paths:
+      - path: /
+        service:
+          name: "project-api-api-3-service"
+          port: 81
+
+serviceAccounts:
+  api: {}
+  api-3: {}
+
+services:
+  api:
+    port: 80
+  api-2:
+    port: 80
+  api-3:
+    port: 80
+
+efs:
+  enabled: true
+  id: ""
+  awsRegion: "eu-west-2"
+  storageRequest: "20Gi"

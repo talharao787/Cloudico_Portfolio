@@ -1,0 +1,1 @@
+This example project makes use of all optional features in the generic-config Chart.

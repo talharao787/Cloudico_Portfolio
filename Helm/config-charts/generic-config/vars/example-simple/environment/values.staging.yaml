@@ -1,0 +1,20 @@
+environment: staging
+
+configMap:
+  config:
+    ENV_KEY_1: "VALUE_1"
+    ENV_KEY_2: "VALUE_2"
+
+externalSecrets:
+  api:
+    secretStoreKind: "SecretStore"
+
+ingresses:
+  api:
+    acmArn: "arn:aws:acm:REGION:ACCOUNT:certificate/XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
+    groupName: "project-nonprod-alb"
+    host: "staging-example-simple-api.example.com"
+
+serviceAccounts:
+  api:
+    roleArn: "arn:aws:iam::ACCOUNT:role/applications/staging/project-api-service-account-role"

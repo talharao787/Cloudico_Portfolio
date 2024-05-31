@@ -1,0 +1,23 @@
+project: project
+component: api
+
+externalSecrets:
+  api: {}
+
+ingresses:
+  api:
+    healthcheck:
+      path: "/_healthcheck"
+    paths:
+      - path: /
+        service:
+          name: "project-api-service"
+          port: 80
+    oidc:
+      enabled: false
+
+serviceAccounts: {}
+
+services:
+  api:
+    port: 80

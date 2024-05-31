@@ -1,0 +1,40 @@
+{{- if .Values.efs.enabled }}
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-efs"
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "generic-config.labels" (list . "efs-deployment") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: efs-provisioner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: efs-provisioner
+    spec:
+      serviceAccountName: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-efs"
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: efs-provisioner
+          image: quay.io/external_storage/efs-provisioner:latest
+          envFrom:
+            - configMapRef:
+                name: "{{ include "generic-config.fullname" . }}-efs-configmap"
+          volumeMounts:
+            - name: "{{ include "generic-config.fullname" . }}-efs"
+              mountPath: "/persistentvolumes"
+      volumes:
+        - name: "{{ include "generic-config.fullname" . }}-efs"
+          nfs:
+            server: "{{ .Values.efs.id }}.efs.eu-west-2.amazonaws.com"
+            path: "/"
+{{- end }}

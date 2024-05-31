@@ -1,0 +1,11 @@
+{{- if .Values.efs.enabled }}
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-efs"
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "generic-config.labels" (list . "efs-class") | nindent 4 }}
+provisioner: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}/aws-efs"
+reclaimPolicy: Retain
+{{- end }}

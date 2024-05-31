@@ -1,0 +1,14 @@
+{{- if .Values.efs.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-efs-configmap"
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "generic-config.labels" (list . "efs-configmap") | nindent 4 }}
+data:
+  FILE_SYSTEM_ID: {{ .Values.efs.id | quote }}
+  AWS_REGION: {{ .Values.efs.awsRegion | quote }}
+  PROVISIONER_NAME: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}/aws-efs"
+  DNS_NAME: "{{ .Values.efs.id }}.efs.{{ .Values.efs.awsRegion }}.amazonaws.com"
+{{- end }}

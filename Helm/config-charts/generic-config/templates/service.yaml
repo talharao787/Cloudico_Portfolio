@@ -1,0 +1,17 @@
+{{- range $serviceComponent, $serviceValues := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "generic-config.resourceName" (list $ "service" $serviceComponent) | quote }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "generic-config.labels" (list $ $serviceComponent) | nindent 4 }}
+spec:
+  type: NodePort
+  ports:
+    - port: {{ $serviceValues.port }}
+      targetPort: http
+      protocol: TCP
+      name: external
+{{- end }}

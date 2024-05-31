@@ -1,0 +1,92 @@
+{{- range $jobComponent, $jobValues := .Values.jobs }}
+{{- if or (not (hasKey $jobValues "enabled")) $jobValues.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "generic-app.fullname" (list $ $jobComponent) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  annotations:
+    {{- range $hook, $value := $jobValues.hooks }}
+      helm.sh/{{$hook}}: {{ $value | quote }}
+    {{- end }}
+  labels:
+    {{- include "generic-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $jobComponent | quote }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "generic-app.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $jobComponent | quote }}
+    spec:
+      restartPolicy: OnFailure
+      {{- if $jobValues.serviceAccount }}
+      serviceAccountName: {{ $jobValues.serviceAccount }}
+      {{- end }}
+      containers:
+        - name: {{ include "generic-app.fullname" (list $ $jobComponent) }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- if or (not (hasKey $jobValues.securityContext "enabled")) $jobValues.securityContext.enabled }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            {{- if $jobValues.securityContext.toYaml }}
+            {{- toYaml $jobValues.securityContext.toYaml | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if $jobValues.args }}
+          args:
+          {{- toYaml $jobValues.args | nindent 12 }}
+          {{- end }}
+          envFrom:
+            {{- range $configmap := $jobValues.configMapNames }}
+            - configMapRef:
+                name: {{ $configmap }}
+            {{- end }}
+            {{- range $secret := $jobValues.secretNames }}
+            - secretRef:
+                name: {{ $secret }}
+            {{- end }}
+          env:
+          {{- range $key, $value := $.Values.environmentVariables }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          {{- range $key, $value := $jobValues.environmentVariables }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          {{- if gt (len $.Values.environmentVariablesFromYaml) 0 }}
+          {{- toYaml $.Values.environmentVariablesFromYaml | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml $jobValues.resources | nindent 12 }}
+          {{- if $jobValues.volumes }}
+          volumeMounts:
+          {{- range $volume := $jobValues.volumes }}
+            - name: {{ $volume.volumeName }}
+              mountPath: {{ $volume.mountPath }}
+          {{- if eq $volume.type "secret" }}
+              readOnly: true
+          {{- end }}
+          {{- end }}
+          {{- end }}
+      {{- if $jobValues.volumes }}
+      volumes:
+        {{- range $volume := $jobValues.volumes }}
+        - name: {{ $volume.volumeName }}
+        {{- if eq $volume.type "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ $volume.pvcName }}
+        {{- end }}
+        {{- if eq $volume.type "secret" }}
+          secret:
+            secretName: {{ $volume.secretName }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,38 @@
+{{- range $deploymentComponent, $deploymentValues := .Values.deployments }}
+{{- if or (not (hasKey $deploymentValues "enabled")) $deploymentValues.enabled }}
+{{- if or (not (hasKey $deploymentValues.replicas.autoscaling "enabled")) $deploymentValues.replicas.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "generic-app.fullname" (list $ $deploymentComponent) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "generic-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $deploymentComponent | quote }}
+    {{- if $deploymentValues.additionalLabels }}
+    {{- toYaml $deploymentValues.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "generic-app.fullname" (list $ $deploymentComponent) }}
+  minReplicas: {{ $deploymentValues.replicas.minReplicas }}
+  maxReplicas: {{ $deploymentValues.replicas.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $deploymentValues.replicas.autoscaling.cpuRatioThreshold }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $deploymentValues.replicas.autoscaling.memoryRatioThreshold }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,111 @@
+{{- range $cronjobComponent, $cronjobValues := .Values.cronjobs }}
+{{- if or (not (hasKey $cronjobValues "enabled")) $cronjobValues.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "generic-app.fullname" (list $ $cronjobComponent) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "generic-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $cronjobComponent | quote }}
+    {{- if $cronjobValues.additionalLabels }}
+    {{- toYaml $cronjobValues.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  schedule: {{ $cronjobValues.schedule | quote }}
+  startingDeadlineSeconds: {{ $cronjobValues.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $cronjobValues.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $cronjobValues.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "generic-app.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $cronjobComponent | quote }}
+    spec:
+      activeDeadlineSeconds: {{ $cronjobValues.activeDeadlineSeconds }}
+      backoffLimit: {{ $cronjobValues.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "generic-app.labels" $ | nindent 12 }}
+            app.kubernetes.io/component: {{ $cronjobComponent | quote }}
+            {{- if $cronjobValues.additionalLabels }}
+            {{- toYaml $cronjobValues.additionalLabels | nindent 12 }}
+            {{- end }}
+          {{- if $cronjobValues.podAnnotations }}
+          annotations:
+            {{- toYaml $cronjobValues.podAnnotations | nindent 12 }}
+          {{- end }}
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ $cronjobValues.serviceAccount }}
+          {{- with $cronjobValues.nodeSelector }}
+          nodeSelector:
+            {{- toYaml $cronjobValues.nodeSelector | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: {{ include "generic-app.fullname" (list $ $cronjobComponent) }}
+              image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              envFrom:
+                - configMapRef:
+                    name: {{ $cronjobValues.configMapName }}
+                {{- range $secret := $cronjobValues.secretNames }}
+                - secretRef:
+                    name: {{ $secret }}
+                {{- end }}
+              {{- if or (not (hasKey $cronjobValues.securityContext "enabled")) $cronjobValues.securityContext.enabled }}
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                {{- if $cronjobValues.securityContext.toYaml }}
+                {{- toYaml $cronjobValues.securityContext.toYaml | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              env:
+              {{- range $key, $value := $.Values.environmentVariables }}
+                - name: {{ $key }}
+                  value: {{ $value | quote }}
+              {{- end }}
+              {{- if $cronjobValues.environmentVariablesFromYaml }}
+              {{- if gt (len $cronjobValues.environmentVariablesFromYaml) 0 }}
+              {{- toYaml $cronjobValues.environmentVariablesFromYaml | nindent 16 }}
+              {{- end }}
+              {{- end }}
+              {{- if gt (len $.Values.environmentVariablesFromYaml) 0 }}
+               {{- toYaml $.Values.environmentVariablesFromYaml | nindent 16 }}
+               {{- end }}
+              {{- if $cronjobValues.args }}
+              args:
+              {{- toYaml $cronjobValues.args | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml $cronjobValues.resources | nindent 16 }}
+              {{- if $cronjobValues.volumes }}
+              volumeMounts:
+              {{- range $volume := $cronjobValues.volumes }}
+                - name: {{ $volume.volumeName }}
+                  mountPath: {{ $volume.mountPath }}
+              {{- if eq $volume.type "secret" }}
+                  readOnly: true
+              {{- end }}
+              {{- end }}
+              {{- end }}
+          {{- if $cronjobValues.volumes }}
+          volumes:
+            {{- range $volume := $cronjobValues.volumes }}
+            - name: {{ $volume.volumeName }}
+            {{- if eq $volume.type "pvc" }}
+              persistentVolumeClaim:
+                claimName: {{ $volume.pvcName }}
+            {{- end }}
+            {{- if eq $volume.type "secret" }}
+              secret:
+                secretName: {{ $volume.secretName }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+{{- end -}}
+{{- end -}}

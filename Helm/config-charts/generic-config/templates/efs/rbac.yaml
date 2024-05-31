@@ -1,0 +1,55 @@
+{{- if .Values.efs.enabled }}
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-run-efs-provisioner"
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-run-efs-provisioner"
+roleRef:
+  kind: ClusterRole
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-run-efs-provisioner"
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-efs"
+    namespace: {{ .Release.Namespace | quote }}
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-leader-locking-efs-provisioner"
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-leader-locking-efs-provisioner"
+subjects:
+  - kind: ServiceAccount
+    name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-efs"
+    namespace: {{ .Release.Namespace | quote }}
+roleRef:
+  kind: Role
+  name: "{{ include "generic-config.fullname" . }}-{{ .Values.environment }}-leader-locking-efs-provisioner"
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

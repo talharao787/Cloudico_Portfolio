@@ -1,0 +1,175 @@
+{{- range $deploymentComponent, $deploymentValues := .Values.deployments }}
+{{- if or (not (hasKey $deploymentValues "enabled")) $deploymentValues.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "generic-app.fullname" (list $ $deploymentComponent) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "generic-app.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $deploymentComponent | quote }}
+    {{- if $deploymentValues.additionalLabels }}
+    {{- toYaml $deploymentValues.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ $deploymentValues.replicas.replicaCount }}
+  minReadySeconds: {{ $deploymentValues.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "generic-app.labels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $deploymentComponent | quote }}
+      {{- if $deploymentValues.additionalLabels }}
+      {{- toYaml $deploymentValues.additionalLabels | nindent 6 }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "generic-app.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $deploymentComponent | quote }}
+        {{- if $deploymentValues.additionalLabels }}
+        {{- toYaml $deploymentValues.additionalLabels | nindent 8 }}
+        {{- end }}
+      {{- if $deploymentValues.podAnnotations }}
+      annotations:
+        {{- toYaml $deploymentValues.podAnnotations | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      serviceAccountName: {{ $deploymentValues.serviceAccountName }}
+      containers:
+        - name: {{ include "generic-app.fullname" (list $ $deploymentComponent) }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          envFrom:
+          {{- range $configmap := $deploymentValues.configMapNames }}
+            - configMapRef:
+                name: {{ $configmap }}
+          {{- end }}
+          {{- range $secret := $deploymentValues.secretNames }}
+            - secretRef:
+                name: {{ $secret }}
+          {{- end }}
+          env:
+            {{- range $key, $value := $.Values.environmentVariables }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if $deploymentValues.environmentVariablesFromYaml }}
+            {{- if gt (len $deploymentValues.environmentVariablesFromYaml) 0 }}
+            {{- toYaml $deploymentValues.environmentVariablesFromYaml | nindent 12 }}
+            {{- end }}
+            {{- end }}
+            {{- if gt (len $.Values.environmentVariablesFromYaml) 0 }}
+            {{- toYaml $.Values.environmentVariablesFromYaml | nindent 12 }}
+            {{- end }}
+          {{- if $deploymentValues.args }}
+          args:
+          {{- toYaml $deploymentValues.args | nindent 12 }}
+          {{- end }}
+          {{- if $deploymentValues.healthChecks }}
+          ports:
+            - name: http
+              protocol: TCP
+              containerPort: {{ $deploymentValues.service.port }}
+          {{- if (hasKey $deploymentValues "lifecycle" ) }}
+          lifecycle:
+            {{- toYaml $deploymentValues.lifecycle | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            {{- if eq "httpGet" (default "httpGet" $deploymentValues.healthChecks.liveness.probeMethod) }}
+            httpGet:
+              path: {{ $deploymentValues.healthChecks.liveness.endpoint }}
+              port: {{ $deploymentValues.service.port }}
+              httpHeaders:
+                - name: Content-Type
+                  value: application/json
+            {{- end }}
+            initialDelaySeconds: {{ $deploymentValues.healthChecks.liveness.initialDelaySeconds }}
+            successThreshold: {{ $deploymentValues.healthChecks.liveness.successThreshold }}
+            failureThreshold: {{ $deploymentValues.healthChecks.liveness.failureThreshold }}
+            periodSeconds: {{ $deploymentValues.healthChecks.liveness.periodSeconds }}
+            timeoutSeconds: {{ $deploymentValues.healthChecks.liveness.timeoutSeconds }}
+          readinessProbe:
+            initialDelaySeconds: {{ $deploymentValues.healthChecks.readiness.initialDelaySeconds }}
+            successThreshold: {{ $deploymentValues.healthChecks.readiness.successThreshold }}
+            failureThreshold: {{ $deploymentValues.healthChecks.readiness.failureThreshold }}
+            periodSeconds: {{ $deploymentValues.healthChecks.readiness.periodSeconds }}
+            {{- if eq "tcpSocket" (default "tcpSocket" $deploymentValues.healthChecks.readiness.probeMethod) }}
+            tcpSocket:
+              port: {{ $deploymentValues.service.port }}
+            {{- end }}
+            {{- if eq "httpGet" (default "tcpSocket" $deploymentValues.healthChecks.readiness.probeMethod) }}
+            httpGet:
+              path: {{ $deploymentValues.healthChecks.readiness.endpoint }}
+              port: {{ $deploymentValues.service.port }}
+              httpHeaders:
+                - name: Content-Type
+                  value: application/json
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml $deploymentValues.resources | nindent 12 }}
+          {{- if or (not (hasKey $deploymentValues.securityContext "enabled")) $deploymentValues.securityContext.enabled }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            {{- if $deploymentValues.securityContext.toYaml }}
+            {{- toYaml $deploymentValues.securityContext.toYaml | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if $deploymentValues.volumes }}
+          volumeMounts:
+          {{- range $volume := $deploymentValues.volumes }}
+            - name: {{ $volume.volumeName }}
+              mountPath: {{ $volume.mountPath }}
+          {{- if eq $volume.type "secret" }}
+              readOnly: true
+          {{- end }}
+          {{- end }}
+          {{- end }}
+      {{- if $deploymentValues.volumes }}
+      volumes:
+        {{- range $volume := $deploymentValues.volumes }}
+        - name: {{ $volume.volumeName }}
+        {{- if eq $volume.type "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ $volume.pvcName }}
+        {{- end }}
+        {{- if eq $volume.type "secret" }}
+          secret:
+            secretName: {{ $volume.secretName }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- with $deploymentValues.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $deploymentValues.affinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                topologyKey: "failure-domain.beta.kubernetes.io/zone"
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: In
+                      values:
+                        - {{ $.Release.Name | quote }}
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - {{ $deploymentComponent }}
+              weight: 100
+      {{- end }}
+      {{- with $deploymentValues.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,32 @@
+# Core values used by all releases
+project: ""
+component: ""
+environment: ""
+
+configMap:
+  config: {}
+
+externalSecret: {}
+
+ingresses: {}
+
+serviceAccounts: {}
+
+services: {}
+
+# Optional features
+## Full name override
+fullnameOverride: ""
+
+## EFS
+efs:
+  enabled: false
+  awsRegion: ""
+  id: ""
+  storageRequest: ""
+  pvc: {}
+
+## Charts that can be deployed as dependencies
+dependencies:
+  local-redis:
+    enabled: false

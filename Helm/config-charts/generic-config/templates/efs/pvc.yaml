@@ -1,0 +1,20 @@
+{{- if .Values.efs.enabled }}
+{{- range $pvccomponent, $pvcvalues := .Values.efs.pvc }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "generic-config.resourceName" (list $ $pvccomponent "efs") | quote }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "generic-config.labels" (list $ "efs-claim") | nindent 4 }}
+  annotations:
+    volume.beta.kubernetes.io/storage-class: {{ include "generic-config.resourceName" (list $ "efs" $.Values.environment ) | quote }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ $pvcvalues.storageRequest }}
+{{- end }}
+{{- end }}

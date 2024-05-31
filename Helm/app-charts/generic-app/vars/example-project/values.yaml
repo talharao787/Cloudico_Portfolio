@@ -1,0 +1,129 @@
+project: "project-name-1"
+image:
+  repository: aws-account-number.dkr.ecr.aws-region.amazonaws.com/project-name
+  tag: ""
+  pullPolicy: IfNotPresent
+
+deployments:
+  deployment-1:
+    configMapNames:
+      - placeholder-1-configmap
+    secretNames:
+      - project-name-es
+    args:
+      - bundle
+      - exec
+      - rails
+      - server
+      - -p
+      - "80"
+      - -b
+      - "0.0.0.0"
+    service:
+      type: NodePort
+      port: 80
+    affinity:
+      enabled: true
+    healthChecks:
+      liveness:
+        endpoint: /_healthcheck
+        initialDelaySeconds: 30
+        failureThreshold: 3
+        successThreshold: 1
+        periodSeconds: 10
+        timeoutSeconds: 10
+      readiness:
+        initialDelaySeconds: 30
+        failureThreshold: 3
+        successThreshold: 1
+        periodSeconds: 30
+    nodeSelector: {}
+    podAnnotations: {}
+    minReadySeconds: 20
+    replicas:
+      autoscaling:
+        enabled: true
+        memoryRatioThreshold: 70
+        cpuRatioThreshold: 70
+      replicaCount: 1
+      minReplicas: 1
+      maxReplicas: 2
+    resources:
+      requests:
+        memory: 500Mi
+        cpu: 500m
+      limits:
+        memory: 800Mi
+        cpu: 800m
+    tolerations: []
+    securityContext:
+      enabled: true
+      toYaml:
+        allowPrivilegeEscalation: false
+jobs:
+  database-migration:
+    serviceAccount: helloworld
+    hooks:
+      hook: "pre-install"
+      hook-delete-policy: "before-hook-creation,hook-succeeded"
+    configMapNames:
+      - placeholder-1-configmap
+      - placeholder-2-configmap
+      - placeholder-3-configmap
+    secretNames:
+      - project-name-es
+    args:
+      - bundle
+      - exec
+      - rake
+      - db:migrate
+    resources:
+      requests:
+        memory: 500Mi
+        cpu: 500m
+      limits:
+        memory: 800Mi
+        cpu: 800m
+    securityContext:
+      enabled: true
+    environmentVariables:
+      key: hello world
+
+cronjobs:
+  darwin-import:
+    enabled: true
+    serviceAccount: helloworld
+    configMapName: placeholder-1-configmap
+    configmapKey: "project-name-id"
+    secretNames:
+      - project-name-es
+    schedule: "*/5 * * * *"
+    activeDeadlineSeconds: "180"
+    backoffLimit: "3"
+    failedJobsHistoryLimit: "1"
+    startingDeadlineSeconds: "30"
+    successfulJobsHistoryLimit: "1"
+    resources:
+      requests:
+        memory: 500Mi
+        cpu: 500m
+      limits:
+        memory: 800Mi
+        cpu: 800m
+    securityContext:
+      enabled: true
+    args:
+      - bundle
+      - exec
+      - rails
+      - darwin:import_realtime_data
+    environmentVariables:
+      key: hello world
+    nodeSelector: {}
+
+environmentVariablesFromYaml:
+  - name: EXAMPLE_KEY_1
+    valueFrom:
+      configMapKeyRef:
+        name: configMapName
+        key: "EXAMPLE_KEY_2"

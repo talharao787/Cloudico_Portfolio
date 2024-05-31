@@ -1,0 +1,42 @@
+{{- range $ingressComponent, $ingressValues := .Values.ingresses }}
+{{- if or $ingressValues.enabled (not (hasKey $ingressValues "enabled")) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "generic-config.resourceName" (list $ "ingress" $ingressComponent) | quote }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "generic-config.labels" (list $ "ingress") | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/group.name: {{ $ingressValues.groupName | quote }}
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/healthcheck-path: {{ $ingressValues.healthcheck.path | quote }}
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: {{ default "60" $ingressValues.healthcheck.intervalSeconds | quote }}
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ include "generic-config.cloudflareIpRanges" $ | splitList "\n" | sortAlpha | join ", " | quote }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ $ingressValues.acmArn | quote }}
+    {{- if $ingressValues.oidc.enabled }}
+    alb.ingress.kubernetes.io/auth-on-unauthenticated-request: "authenticate"
+    alb.ingress.kubernetes.io/auth-type: "oidc"
+    alb.ingress.kubernetes.io/auth-idp-oidc: '{"issuer":"https://login.microsoftonline.com/8b297609-9871-4fd6-a975-e3be966b2519/v2.0","authorizationEndpoint":"https://login.microsoftonline.com/8b297609-9871-4fd6-a975-e3be966b2519/oauth2/v2.0/authorize","tokenEndpoint":"https://login.microsoftonline.com/8b297609-9871-4fd6-a975-e3be966b2519/oauth2/v2.0/token","userInfoEndpoint":"https://graph.microsoft.com/oidc/userinfo","secretName":"{{ $ingressValues.oidc.externalSecretName }}"}'
+    {{- end }}
+    {{- if hasKey $ingressValues "groupOrder" }}
+    alb.ingress.kubernetes.io/group.order: {{ $ingressValues.groupOrder | default 0 | quote }}
+    {{- end }}
+spec:
+  ingressClassName: alb
+  rules:
+    - host: {{ $ingressValues.host | quote }}
+      http:
+        paths:
+        {{- range $path := $ingressValues.paths }}
+          - backend:
+              service:
+                name: {{ $path.service.name | quote }}
+                port:
+                  number: {{ $path.service.port }}
+            path: {{ $path.path }}
+            pathType: Prefix
+        {{- end }}
+{{- end }}
+{{- end }}
